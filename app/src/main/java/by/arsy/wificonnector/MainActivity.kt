@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import by.arsy.wificonnector.ui.theme.DialogScreen
 import by.arsy.wificonnector.ui.theme.WiFiConnectorTheme
 
 class MainActivity : ComponentActivity() {
@@ -38,6 +39,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             WiFiConnectorTheme {
                 val text by mainViewModel.text.collectAsState()
+                val stateMessage by mainViewModel.stateMessage.collectAsState()
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
                         text = text,
@@ -48,6 +50,17 @@ class MainActivity : ComponentActivity() {
                             .fillMaxSize()
                             .padding(innerPadding)
                     )
+
+
+                    if (stateMessage.isNotBlank()) {
+                        DialogScreen(
+                            message = stateMessage,
+                            onClose = { mainViewModel.resetState() },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                        )
+                    }
                 }
             }
         }
@@ -55,10 +68,12 @@ class MainActivity : ComponentActivity() {
 
     private fun checkAndRequestPermissions() {
         val permissionsToRequest = mutableListOf(
-            Manifest.permission.NEARBY_WIFI_DEVICES,
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION
         )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionsToRequest.add(Manifest.permission.NEARBY_WIFI_DEVICES)
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissionsToRequest.addAll(
                 listOf(
