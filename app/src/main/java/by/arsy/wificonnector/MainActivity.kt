@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -20,9 +21,14 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import androidx.savedstate.savedState
+import by.arsy.wificonnector.screen.StartScreen
 import by.arsy.wificonnector.ui.theme.DialogScreen
 import by.arsy.wificonnector.ui.theme.WiFiConnectorTheme
 
@@ -38,19 +44,26 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             WiFiConnectorTheme {
-                val text by mainViewModel.text.collectAsState()
                 val stateMessage by mainViewModel.stateMessage.collectAsState()
+                var primitiveNavigate by rememberSaveable { mutableStateOf(true) }
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        text = text,
-                        onTextChange = mainViewModel::updateText,
-                        onCreateWifi = mainViewModel::createEndpoint,
-                        onAskWifi = mainViewModel::discoveryEndpoint,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                    )
-
+                    if (primitiveNavigate) {
+                        StartScreen(
+                            viewModel = mainViewModel,
+                            onNavigate = { primitiveNavigate = false },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                        )
+                    } else {
+                        Greeting(
+                            onNavigate = { primitiveNavigate = true },
+                            viewModel = mainViewModel,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                        )
+                    }
 
                     if (stateMessage.isNotBlank()) {
                         DialogScreen(
@@ -99,28 +112,26 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun Greeting(
-    text: String,
-    onTextChange: (String) -> Unit,
-    onCreateWifi: () -> Unit,
-    onAskWifi: () -> Unit,
+    viewModel: MainViewModel,
+    onNavigate: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+
+    val text by viewModel.text.collectAsState()
+
+    BackHandler {
+        viewModel.destroyEndpoint()
+        onNavigate()
+    }
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
         modifier = modifier
     ) {
-        Button(onClick = onCreateWifi) {
-            Text(text = "Create endpoint")
-        }
-
-        Button(onClick = onAskWifi) {
-            Text(text = "Discovery endpoint")
-        }
-
         TextField(
             value = text,
-            onValueChange = { onTextChange(it) }
+            onValueChange =  viewModel::updateText
         )
 
         Text(

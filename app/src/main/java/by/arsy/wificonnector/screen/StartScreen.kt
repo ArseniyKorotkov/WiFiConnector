@@ -1,0 +1,70 @@
+package by.arsy.wificonnector.screen
+
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import by.arsy.wificonnector.MainViewModel
+
+@Composable
+fun StartScreen(
+    viewModel: MainViewModel,
+    onNavigate: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val discoveredEndpointSet = viewModel.discoveredEndpointSet
+    val discoveryState by viewModel.discoveryState.collectAsState()
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+    ) {
+        Button(onClick = {
+            viewModel.createEndpoint()
+            onNavigate()
+        }) {
+            Text(text = "Create endpoint")
+        }
+
+        Button(onClick = if (discoveryState) viewModel::stopDiscoveryEndpoint else viewModel::discoveryEndpoint) {
+            Text(text = if (discoveryState) "stopDiscoveryEndpoint" else "discoveryEndpoint")
+        }
+
+        Box(modifier = Modifier.weight(1f)) {
+            LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                items(discoveredEndpointSet.toList()) {
+                    Text(
+                        text = it.endpointName,
+                        modifier = Modifier
+                            .clickable(onClick = {
+                                viewModel.requestConnection(it.endpointId)
+                                viewModel.stopDiscoveryEndpoint()
+                                onNavigate()
+                            })
+                    )
+                }
+            }
+
+            if (discoveryState) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(alignment = Alignment.TopEnd),
+                    color = Color(0xE6FFFFFF)
+                )
+            }
+        }
+    }
+}

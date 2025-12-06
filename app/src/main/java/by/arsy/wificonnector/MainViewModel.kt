@@ -1,6 +1,7 @@
 package by.arsy.wificonnector
 
 import android.app.Application
+import androidx.compose.runtime.mutableStateSetOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.nearby.Nearby
@@ -25,14 +26,19 @@ private const val SERVICE_ID = "by.arsy.wificonnector"
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val name = "Nick${(Math.random() * 100).toInt()}"
+    private val name = "Nick${(Math.random() * 1000).toInt()}"
     private val connectionsClient = Nearby.getConnectionsClient(application)
     private var connectEndpointId = ""
     private val _text = MutableStateFlow("")
     val text = _text.asStateFlow()
     private val _stateMessage = MutableStateFlow("")
     private val _connectionFlag = MutableStateFlow(true)
+    private val _discoveryState = MutableStateFlow(false)
+    private val _host = MutableStateFlow(false)
     val stateMessage = _stateMessage.asStateFlow()
+    val discoveryState = _discoveryState.asStateFlow()
+    val host = _host.asStateFlow()
+    val discoveredEndpointSet = mutableStateSetOf<Endpoint>()
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
@@ -66,11 +72,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             endpointId: String,
             discoveredEndpointInfo: DiscoveredEndpointInfo
         ) {
-            changeState("connect found ${discoveredEndpointInfo.endpointName}")
-            connectionsClient.requestConnection(name, endpointId, connectionCallback)
+            discoveredEndpointSet.add(
+                Endpoint(endpointId, discoveredEndpointInfo.endpointName)
+            )
         }
 
-        override fun onEndpointLost(endpointId: String) {}
+        override fun onEndpointLost(endpointId: String) {
+            discoveredEndpointSet.removeIf { it.endpointId == endpointId }
+        }
     }
 
     fun createEndpoint() {
@@ -81,14 +90,36 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             connectionCallback,
             options
         )
+        _host.value = true
         changeState("create endpoint with name $name")
     }
 
+    fun destroyEndpoint() {
+        if (_host.value) {
+            connectionsClient.stopAdvertising()
+        }
+    }
+
     fun discoveryEndpoint() {
+        connectionsClient.stopDiscovery()
         val options = DiscoveryOptions.Builder().setStrategy(Strategy.P2P_STAR).build()
         connectionsClient.startDiscovery(SERVICE_ID, endpointDiscoveryCallback, options)
-            .addOnSuccessListener { changeState("Start discovery endpoints") }
-            .addOnFailureListener { _ -> changeState("On wifi. Sometimes help on localization too") }
+            .addOnSuccessListener {
+                _discoveryState.value = true
+            }
+            .addOnFailureListener { _ ->
+                changeState("On wifi. Sometimes help on localization too")
+                _discoveryState.value = false
+            }
+    }
+
+    fun stopDiscoveryEndpoint() {
+        connectionsClient.stopDiscovery()
+        _discoveryState.value = false
+    }
+
+    fun requestConnection(endpointId: String) {
+        connectionsClient.requestConnection(name, endpointId, connectionCallback)
     }
 
     fun sendText(text: String, toEndpointId: String) {
@@ -109,3 +140,5 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         changeState("")
     }
 }
+
+data class Endpoint(val endpointId: String, val endpointName: String)
