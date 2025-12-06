@@ -12,8 +12,6 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
@@ -21,7 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import by.arsy.wificonnector.screen.ChatScreen
 import by.arsy.wificonnector.screen.ChoiceChatScreen
-import by.arsy.wificonnector.ui.theme.DialogScreen
+import by.arsy.wificonnector.screen.DialogScreen
 import by.arsy.wificonnector.ui.theme.WiFiConnectorTheme
 
 class MainActivity : ComponentActivity() {
@@ -36,7 +34,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             WiFiConnectorTheme {
-                val stateMessage by mainViewModel.stateMessage.collectAsState()
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     val navController = rememberNavController()
                     NavHost(
@@ -63,15 +60,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    if (stateMessage.isNotBlank()) {
-                        DialogScreen(
-                            message = stateMessage,
-                            onClose = { mainViewModel.resetState() },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(innerPadding)
-                        )
-                    }
+                    DialogScreen(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                    )
                 }
             }
         }

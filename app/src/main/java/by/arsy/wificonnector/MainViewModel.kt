@@ -18,7 +18,6 @@ import com.google.android.gms.nearby.connection.PayloadTransferUpdate
 import com.google.android.gms.nearby.connection.Strategy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 
@@ -28,14 +27,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val name = "Nick${(Math.random() * 1000).toInt()}"
     private val connectionsClient = Nearby.getConnectionsClient(application)
-    private var connectEndpointId = ""
+
+    private val connectEndpointIdSet = mutableSetOf<String>()
     private val _text = MutableStateFlow("")
     val text = _text.asStateFlow()
-    private val _stateMessage = MutableStateFlow("")
-    private val _connectionFlag = MutableStateFlow(true)
     private val _discoveryState = MutableStateFlow(false)
     private val _host = MutableStateFlow(false)
-    val stateMessage = _stateMessage.asStateFlow()
     val discoveryState = _discoveryState.asStateFlow()
     val host = _host.asStateFlow()
     val discoveredEndpointSet = mutableStateSetOf<Endpoint>()
@@ -51,20 +48,52 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val connectionCallback = object : ConnectionLifecycleCallback() {
+        val requestToConnectEndpointMap = mutableMapOf<String, String>()
         override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
-            connectEndpointId = endpointId
-            _connectionFlag.value = true
-            changeState("want to connect with ${connectionInfo.endpointName}?")
-            viewModelScope.launch {
-                _stateMessage.first { it.isBlank() && _connectionFlag.value }
+            requestToConnectEndpointMap[endpointId] = connectionInfo.endpointName
+            if (connectionInfo.isIncomingConnection) {
+                sendDialogEvent(
+                    message = "Do you want to connect with ${requestToConnectEndpointMap[endpointId]}",
+                    onClickOk = {
+                        connectionsClient.acceptConnection(endpointId, payloadCallback)
+                    },
+                    onClickCancel = {
+                        connectionsClient.rejectConnection(endpointId)
+                    }
+                )
+            } else {
                 connectionsClient.acceptConnection(endpointId, payloadCallback)
-                changeState("connect with ${connectionInfo.endpointName}")
-                _connectionFlag.value = false
+                sendDialogEvent(
+                    message = "Wait decision from ${requestToConnectEndpointMap[endpointId]}"
+                )
             }
         }
 
-        override fun onConnectionResult(p0: String, p1: ConnectionResolution) {}
-        override fun onDisconnected(p0: String) {}
+        override fun onConnectionResult(
+            endpointId: String,
+            connectionResolution: ConnectionResolution
+        ) {
+            if (connectionResolution.status.isSuccess) {
+                sendDialogEvent(
+                    message = "Successfully connect with ${requestToConnectEndpointMap[endpointId]}",
+                    onClickOk = {
+                        connectEndpointIdSet.add(endpointId)
+                    }
+                )
+            } else {
+                sendDialogEvent(
+                    message = "Reject connect with ${requestToConnectEndpointMap[endpointId]}"
+                )
+            }
+        }
+
+        override fun onDisconnected(endpointId: String) {
+            sendDialogEvent(
+                message = "Disconnect with ${requestToConnectEndpointMap[endpointId]}"
+            )
+            requestToConnectEndpointMap.remove(endpointId)
+            discoveredEndpointSet.removeIf { it.endpointId == endpointId }
+        }
     }
 
     private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
@@ -91,7 +120,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             options
         )
         _host.value = true
-        changeState("create endpoint with name $name")
+        sendDialogEvent(
+            message = "Created endpoint with name $name"
+        )
     }
 
     fun destroyEndpoint() {
@@ -108,7 +139,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 _discoveryState.value = true
             }
             .addOnFailureListener { _ ->
-                changeState("On wifi. Sometimes help on localization too")
+                sendDialogEvent(
+                    message = "Turn on wifi and location"
+                )
                 _discoveryState.value = false
             }
     }
@@ -128,16 +161,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun updateText(text: String) {
-        sendText(text, connectEndpointId)
+        connectEndpointIdSet.forEach {
+            sendText(text, toEndpointId = it)
+        }
         _text.value = text
     }
 
-    fun changeState(message: String) {
-        _stateMessage.value = message
+    fun sendDialogEvent(
+        message: String,
+        onClickOk: () -> Unit = {},
+        onClickCancel: () -> Unit = {},
+    ) {
+        viewModelScope.launch {
+            EventBus.send(
+                event = DialogEvent.ShowDialog(
+                    message = message,
+                    onClickOk = {
+                        onClickOk()
+                        resetDialogEvent()
+                    },
+                    onClickCancel = {
+                        onClickCancel()
+                        resetDialogEvent()
+                    }
+                )
+            )
+        }
     }
 
-    fun resetState() {
-        changeState("")
+    fun resetDialogEvent() {
+        viewModelScope.launch {
+            EventBus.send(DialogEvent.HideDialog)
+        }
     }
 }
 
