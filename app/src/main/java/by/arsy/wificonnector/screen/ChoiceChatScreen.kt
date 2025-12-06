@@ -20,7 +20,7 @@ import androidx.compose.ui.graphics.Color
 import by.arsy.wificonnector.MainViewModel
 
 @Composable
-fun StartScreen(
+fun ChoiceChatScreen(
     viewModel: MainViewModel,
     onNavigate: () -> Unit,
     modifier: Modifier = Modifier

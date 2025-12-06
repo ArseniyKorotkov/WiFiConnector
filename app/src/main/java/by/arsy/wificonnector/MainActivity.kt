@@ -5,30 +5,22 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextField
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import androidx.savedstate.savedState
-import by.arsy.wificonnector.screen.StartScreen
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import by.arsy.wificonnector.screen.ChatScreen
+import by.arsy.wificonnector.screen.ChoiceChatScreen
 import by.arsy.wificonnector.ui.theme.DialogScreen
 import by.arsy.wificonnector.ui.theme.WiFiConnectorTheme
 
@@ -45,24 +37,30 @@ class MainActivity : ComponentActivity() {
         setContent {
             WiFiConnectorTheme {
                 val stateMessage by mainViewModel.stateMessage.collectAsState()
-                var primitiveNavigate by rememberSaveable { mutableStateOf(true) }
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    if (primitiveNavigate) {
-                        StartScreen(
-                            viewModel = mainViewModel,
-                            onNavigate = { primitiveNavigate = false },
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(innerPadding)
-                        )
-                    } else {
-                        Greeting(
-                            onNavigate = { primitiveNavigate = true },
-                            viewModel = mainViewModel,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(innerPadding)
-                        )
+                    val navController = rememberNavController()
+                    NavHost(
+                        navController = navController,
+                        startDestination = Route.ChoiceChat.route
+                    ) {
+                        composable(route = Route.ChoiceChat.route) {
+                            ChoiceChatScreen(
+                                viewModel = mainViewModel,
+                                onNavigate = { navController.navigate(Route.Chat.route) },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding)
+                            )
+                        }
+                        composable(Route.Chat.route) {
+                            ChatScreen(
+                                onNavigate = { navController.popBackStack() },
+                                viewModel = mainViewModel,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(innerPadding)
+                            )
+                        }
                     }
 
                     if (stateMessage.isNotBlank()) {
@@ -110,32 +108,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun Greeting(
-    viewModel: MainViewModel,
-    onNavigate: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-
-    val text by viewModel.text.collectAsState()
-
-    BackHandler {
-        viewModel.destroyEndpoint()
-        onNavigate()
-    }
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-        modifier = modifier
-    ) {
-        TextField(
-            value = text,
-            onValueChange =  viewModel::updateText
-        )
-
-        Text(
-            text = text
-        )
-    }
+sealed class Route(val route: String) {
+    object ChoiceChat : Route("choiceChatScreen")
+    object Chat : Route("chatScreen")
 }
