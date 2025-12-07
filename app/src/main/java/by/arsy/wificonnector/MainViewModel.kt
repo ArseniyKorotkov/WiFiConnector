@@ -1,6 +1,7 @@
 package by.arsy.wificonnector
 
 import android.app.Application
+import android.content.Context
 import androidx.compose.runtime.mutableStateSetOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -24,10 +25,12 @@ import kotlinx.coroutines.launch
 private const val SERVICE_ID = "by.arsy.wificonnector"
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val name = "Nick${(Math.random() * 1000).toInt()}"
+    private val sharedPreferences = getApplication<Application>().getSharedPreferences(
+        "app_prefs",
+        Context.MODE_PRIVATE
+    )
+    private val sharedPreferencesUsernameKey = "username"
     private val connectionsClient = Nearby.getConnectionsClient(application)
-
     private val connectEndpointIdSet = mutableSetOf<String>()
     private val _text = MutableStateFlow("")
     val text = _text.asStateFlow()
@@ -36,6 +39,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val discoveryState = _discoveryState.asStateFlow()
     val host = _host.asStateFlow()
     val discoveredEndpointSet = mutableStateSetOf<Endpoint>()
+
+    var name = getUsername()
 
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
@@ -172,6 +177,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _text.value = text
     }
 
+    fun updateUsername(username: String) {
+        name = username
+        sharedPreferences.edit().putString(sharedPreferencesUsernameKey, username).apply()
+    }
+
     private fun sendText(text: String, toEndpointId: String) {
         val bytesPayload = Payload.fromBytes(text.toByteArray(Charsets.UTF_8))
         connectionsClient.sendPayload(toEndpointId, bytesPayload)
@@ -197,6 +207,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             EventBus.emit(DialogEvent.HideDialog)
         }
+    }
+
+    private fun getUsername(): String {
+        val username = sharedPreferences.getString(sharedPreferencesUsernameKey, null)
+            ?: "Nick${(Math.random() * 1000).toInt()}"
+        return username
     }
 }
 
