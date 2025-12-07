@@ -42,11 +42,18 @@ class MainActivity : ComponentActivity() {
                     val scope = rememberCoroutineScope()
                     LaunchedEffect(Unit) {
                         EventBus.channel.collect { event ->
-                            if (event is NavigateEvent.BackStack) {
-                                navController.popBackStack()
-                                scope.launch {
-                                    EventBus.emit(DialogEvent.HideDialog)
+                            if (event !is NavigateEvent) return@collect
+                            when (event) {
+                                is NavigateEvent.NavigateTo -> {
+                                    navController.navigate(event.route)
                                 }
+
+                                is NavigateEvent.BackStack -> {
+                                    navController.popBackStack()
+                                }
+                            }
+                            scope.launch {
+                                EventBus.emit(DialogEvent.HideDialog)
                             }
                         }
                     }

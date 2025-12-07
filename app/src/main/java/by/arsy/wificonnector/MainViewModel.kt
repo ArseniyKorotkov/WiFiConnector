@@ -66,7 +66,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             } else {
                 connectionsClient.acceptConnection(endpointId, payloadCallback)
                 sendDialogEvent(
-                    message = "Wait decision from ${requestToConnectEndpointMap[endpointId]}"
+                    message = "Wait decision from ${requestToConnectEndpointMap[endpointId]}",
                 )
             }
         }
@@ -80,7 +80,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     message = "Successfully connect with ${requestToConnectEndpointMap[endpointId]}",
                     onClickOk = {
                         connectEndpointIdSet.add(endpointId)
-                        resetDialogEvent()
+                        viewModelScope.launch {
+                            EventBus.emit(NavigateEvent.NavigateTo(Route.Chat.route))
+                        }
                     }
                 )
             } else {

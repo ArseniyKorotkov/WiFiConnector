@@ -31,4 +31,5 @@ sealed class DialogEvent : Event() {
 
 sealed class NavigateEvent : Event() {
     object BackStack : NavigateEvent()
+    data class NavigateTo(val route: String) : NavigateEvent()
 }
