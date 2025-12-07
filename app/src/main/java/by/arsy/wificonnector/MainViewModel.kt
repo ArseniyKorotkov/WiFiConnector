@@ -165,11 +165,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         connectionsClient.requestConnection(name, endpointId, connectionCallback)
     }
 
-    fun sendText(text: String, toEndpointId: String) {
-        val bytesPayload = Payload.fromBytes(text.toByteArray(Charsets.UTF_8))
-        connectionsClient.sendPayload(toEndpointId, bytesPayload)
-    }
-
     fun updateText(text: String) {
         connectEndpointIdSet.forEach {
             sendText(text, toEndpointId = it)
@@ -177,7 +172,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _text.value = text
     }
 
-    fun sendDialogEvent(
+    private fun sendText(text: String, toEndpointId: String) {
+        val bytesPayload = Payload.fromBytes(text.toByteArray(Charsets.UTF_8))
+        connectionsClient.sendPayload(toEndpointId, bytesPayload)
+    }
+
+    private fun sendDialogEvent(
         message: String,
         onClickOk: () -> Unit = { resetDialogEvent() },
         onClickCancel: () -> Unit = { resetDialogEvent() },
@@ -193,7 +193,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun resetDialogEvent() {
+    private fun resetDialogEvent() {
         viewModelScope.launch {
             EventBus.emit(DialogEvent.HideDialog)
         }
