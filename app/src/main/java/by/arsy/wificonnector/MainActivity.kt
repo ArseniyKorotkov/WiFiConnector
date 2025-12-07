@@ -12,6 +12,8 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
@@ -21,6 +23,7 @@ import by.arsy.wificonnector.screen.ChatScreen
 import by.arsy.wificonnector.screen.ChoiceChatScreen
 import by.arsy.wificonnector.screen.DialogScreen
 import by.arsy.wificonnector.ui.theme.WiFiConnectorTheme
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -36,6 +39,17 @@ class MainActivity : ComponentActivity() {
             WiFiConnectorTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     val navController = rememberNavController()
+                    val scope = rememberCoroutineScope()
+                    LaunchedEffect(Unit) {
+                        EventBus.channel.collect { event ->
+                            if (event is NavigateEvent.BackStack) {
+                                navController.popBackStack()
+                                scope.launch {
+                                    EventBus.emit(DialogEvent.HideDialog)
+                                }
+                            }
+                        }
+                    }
                     NavHost(
                         navController = navController,
                         startDestination = Route.ChoiceChat.route

@@ -56,9 +56,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     message = "Do you want to connect with ${requestToConnectEndpointMap[endpointId]}",
                     onClickOk = {
                         connectionsClient.acceptConnection(endpointId, payloadCallback)
+                        resetDialogEvent()
                     },
                     onClickCancel = {
                         connectionsClient.rejectConnection(endpointId)
+                        resetDialogEvent()
                     }
                 )
             } else {
@@ -78,6 +80,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     message = "Successfully connect with ${requestToConnectEndpointMap[endpointId]}",
                     onClickOk = {
                         connectEndpointIdSet.add(endpointId)
+                        resetDialogEvent()
                     }
                 )
             } else {
@@ -89,7 +92,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         override fun onDisconnected(endpointId: String) {
             sendDialogEvent(
-                message = "Disconnect with ${requestToConnectEndpointMap[endpointId]}"
+                message = "Disconnect with ${requestToConnectEndpointMap[endpointId]}",
+                onClickOk = {
+                    viewModelScope.launch {
+                        EventBus.emit(NavigateEvent.BackStack)
+                    }
+                }
             )
             requestToConnectEndpointMap.remove(endpointId)
             discoveredEndpointSet.removeIf { it.endpointId == endpointId }
@@ -169,21 +177,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendDialogEvent(
         message: String,
-        onClickOk: () -> Unit = {},
-        onClickCancel: () -> Unit = {},
+        onClickOk: () -> Unit = { resetDialogEvent() },
+        onClickCancel: () -> Unit = { resetDialogEvent() },
     ) {
         viewModelScope.launch {
-            EventBus.send(
+            EventBus.emit(
                 event = DialogEvent.ShowDialog(
                     message = message,
-                    onClickOk = {
-                        onClickOk()
-                        resetDialogEvent()
-                    },
-                    onClickCancel = {
-                        onClickCancel()
-                        resetDialogEvent()
-                    }
+                    onClickOk = onClickOk,
+                    onClickCancel = onClickCancel
                 )
             )
         }
@@ -191,7 +193,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetDialogEvent() {
         viewModelScope.launch {
-            EventBus.send(DialogEvent.HideDialog)
+            EventBus.emit(DialogEvent.HideDialog)
         }
     }
 }

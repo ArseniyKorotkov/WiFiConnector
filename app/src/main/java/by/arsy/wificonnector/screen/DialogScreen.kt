@@ -31,6 +31,7 @@ fun DialogScreen(
 
     LaunchedEffect(Unit) {
         EventBus.channel.collect { alertEvent ->
+            if (alertEvent !is DialogEvent) return@collect
             when (alertEvent) {
                 is DialogEvent.ShowDialog -> {
                     dialogType = dialogType.copy(
