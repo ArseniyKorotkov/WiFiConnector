@@ -2,9 +2,13 @@ package by.arsy.wificonnector
 
 import android.app.Application
 import android.content.Context
+import android.provider.Settings
 import androidx.compose.runtime.mutableStateSetOf
+import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import by.arsy.wificonnector.model.Message
+import by.arsy.wificonnector.util.GsonMessageConverter
 import com.google.android.gms.nearby.Nearby
 import com.google.android.gms.nearby.connection.AdvertisingOptions
 import com.google.android.gms.nearby.connection.ConnectionInfo
@@ -30,14 +34,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         Context.MODE_PRIVATE
     )
     private val sharedPreferencesUsernameKey = "username"
+    private val androidId = Settings.Secure.getString(
+        getApplication<Application>().contentResolver,
+        Settings.Secure.ANDROID_ID
+    )
+    private val _chatList = MutableStateFlow(emptyList<Message>())
     private val connectionsClient = Nearby.getConnectionsClient(application)
     private val connectEndpointIdSet = mutableSetOf<String>()
-    private val _text = MutableStateFlow("")
-    val text = _text.asStateFlow()
     private val _discoveryState = MutableStateFlow(false)
-    private val _host = MutableStateFlow(false)
+    private var isHost = false
+
+    val chatList = _chatList.asStateFlow()
     val discoveryState = _discoveryState.asStateFlow()
-    val host = _host.asStateFlow()
     val discoveredEndpointSet = mutableStateSetOf<Endpoint>()
 
     var name = getUsername()
@@ -45,7 +53,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val payloadCallback = object : PayloadCallback() {
         override fun onPayloadReceived(endpointId: String, payload: Payload) {
             if (payload.type == Payload.Type.BYTES) {
-                _text.value = String(bytes = payload.asBytes()!!)
+                val json = String(payload.asBytes()!!)
+                if (isHost) {
+                    val message = GsonMessageConverter.fromJson(json)
+                    hostDistributionCorrectChatList(message)
+                } else {
+                    _chatList.value = GsonMessageConverter.listFromJson(json)
+                }
             }
         }
 
@@ -56,6 +70,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val requestToConnectEndpointMap = mutableMapOf<String, String>()
         override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
             requestToConnectEndpointMap[endpointId] = connectionInfo.endpointName
+            isHost = connectionInfo.isIncomingConnection
             if (connectionInfo.isIncomingConnection) {
                 sendDialogEvent(
                     message = "Do you want to connect with ${requestToConnectEndpointMap[endpointId]}",
@@ -85,6 +100,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     message = "Successfully connect with ${requestToConnectEndpointMap[endpointId]}",
                     onClickOk = {
                         connectEndpointIdSet.add(endpointId)
+                        if (isHost) {
+                            distributionChatListBytes()
+                        }
                         viewModelScope.launch {
                             EventBus.emit(NavigateEvent.NavigateTo(Route.Chat.route))
                         }
@@ -98,14 +116,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         override fun onDisconnected(endpointId: String) {
-            sendDialogEvent(
-                message = "Disconnect with ${requestToConnectEndpointMap[endpointId]}",
-                onClickOk = {
-                    viewModelScope.launch {
-                        EventBus.emit(NavigateEvent.BackStack)
+            if (!isHost) {
+                sendDialogEvent(
+                    message = "Disconnect with ${requestToConnectEndpointMap[endpointId]}",
+                    onClickOk = {
+                        viewModelScope.launch {
+                            EventBus.emit(NavigateEvent.BackStack)
+                        }
                     }
-                }
-            )
+                )
+            }
             requestToConnectEndpointMap.remove(endpointId)
             discoveredEndpointSet.removeIf { it.endpointId == endpointId }
         }
@@ -134,14 +154,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             connectionCallback,
             options
         )
-        _host.value = true
+        isHost = true
         sendDialogEvent(
             message = "Created endpoint with name $name"
         )
     }
 
     fun destroyEndpoint() {
-        if (_host.value) {
+        if (isHost) {
             connectionsClient.stopAdvertising()
         }
     }
@@ -170,21 +190,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         connectionsClient.requestConnection(name, endpointId, connectionCallback)
     }
 
-    fun updateText(text: String) {
-        connectEndpointIdSet.forEach {
-            sendText(text, toEndpointId = it)
-        }
-        _text.value = text
-    }
-
     fun updateUsername(username: String) {
         name = username
-        sharedPreferences.edit().putString(sharedPreferencesUsernameKey, username).apply()
+        sharedPreferences.edit { putString(sharedPreferencesUsernameKey, username) }
     }
 
-    private fun sendText(text: String, toEndpointId: String) {
-        val bytesPayload = Payload.fromBytes(text.toByteArray(Charsets.UTF_8))
-        connectionsClient.sendPayload(toEndpointId, bytesPayload)
+    fun sendMessage(text: String) {
+        val message = Message(
+            id = androidId,
+            username = name,
+            text = text
+        )
+
+        if (isHost) {
+            hostDistributionCorrectChatList(message)
+        } else {
+            distributionBytes(text = GsonMessageConverter.toJson(message))
+        }
+    }
+
+    fun isOwnerId(id: String) : Boolean {
+        return id == androidId
     }
 
     private fun sendDialogEvent(
@@ -213,6 +239,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val username = sharedPreferences.getString(sharedPreferencesUsernameKey, null)
             ?: "Nick${(Math.random() * 1000).toInt()}"
         return username
+    }
+
+    private fun hostDistributionCorrectChatList(message: Message) {
+        hostUpdateChatList(message)
+        distributionChatListBytes()
+    }
+
+    private fun distributionChatListBytes() {
+        distributionBytes(text = GsonMessageConverter.listToJson(_chatList.value))
+    }
+
+    private fun distributionBytes(text: String) {
+        connectEndpointIdSet.forEach {
+            val bytesPayload = Payload.fromBytes(text.toByteArray(Charsets.UTF_8))
+            connectionsClient.sendPayload(it, bytesPayload)
+        }
+    }
+
+    private fun hostUpdateChatList(message: Message) {
+        val mutableChat = _chatList.value.toMutableList()
+        mutableChat.add(message)
+        _chatList.value = mutableChat.map {
+            if (it.id == message.id) {
+                it.copy(username = message.username)
+            } else {
+                it
+            }
+        }
     }
 }
 

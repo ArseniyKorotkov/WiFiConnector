@@ -76,7 +76,7 @@ class MainActivity : ComponentActivity() {
                                 viewModel = mainViewModel,
                                 modifier = Modifier
                                     .fillMaxSize()
-                                    .padding(innerPadding)
+                                    .padding(top = innerPadding.calculateTopPadding())
                             )
                         }
                     }

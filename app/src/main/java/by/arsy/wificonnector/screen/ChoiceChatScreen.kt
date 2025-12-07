@@ -50,6 +50,7 @@ fun ChoiceChatScreen(
         TextField(
             modifier = Modifier.padding(bottom = 6.dp),
             value = userName,
+            singleLine = true,
             onValueChange = {
                 viewModel.updateUsername(username = it)
                 userName = it
