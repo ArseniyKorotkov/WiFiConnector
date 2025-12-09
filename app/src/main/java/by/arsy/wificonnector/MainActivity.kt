@@ -45,11 +45,16 @@ class MainActivity : ComponentActivity() {
                             if (event !is NavigateEvent) return@collect
                             when (event) {
                                 is NavigateEvent.NavigateTo -> {
-                                    navController.navigate(event.route)
+                                    navController.navigate(event.route) {
+                                        launchSingleTop = true
+                                    }
                                 }
 
                                 is NavigateEvent.BackStack -> {
-                                    navController.popBackStack()
+                                    navController.popBackStack(
+                                        route = Route.ChoiceChat.route,
+                                        inclusive = false
+                                    )
                                 }
                             }
                             scope.launch {

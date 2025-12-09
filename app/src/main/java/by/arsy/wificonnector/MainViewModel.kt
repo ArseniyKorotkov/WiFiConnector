@@ -164,6 +164,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (isHost) {
             connectionsClient.stopAdvertising()
         }
+        connectEndpointIdSet.forEach {
+            connectionsClient.disconnectFromEndpoint(it)
+        }
     }
 
     fun discoveryEndpoint() {
